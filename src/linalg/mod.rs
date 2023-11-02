@@ -2,16 +2,23 @@ use std::ops::{Add, Mul, Sub};
 
 use num::{traits::Float, Zero, One};
 
+pub trait Linear<T: Float>: Clone + Copy + Zero + Mul<T, Output = Self> + Add<Self, Output = Self> {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct BVec<T: Float, const N: usize> {
     pub v: [T; N]
 }
 
+pub type BNull = BVec<f32, 0>;
 pub type Vec2 = BVec<f32, 2>;
 pub type Vec3 = BVec<f32, 3>;
 pub type Vec4 = BVec<f32, 4>;
 
+impl Linear<f32> for f32 {}
+impl Linear<f64> for f64 {}
+
+impl <T: Float, const N: usize> Linear<T> for BVec<T, N> {}
+// x, y, z, w, norm, normalize
 impl <T: Float, const N: usize> BVec<T, N> {
     pub fn x(&self) -> T {
         self.v[0]
@@ -130,6 +137,10 @@ impl <T: Float, const N: usize> Mul for BVec<T, N> {
         ans
     }
 }
+// cross product
+impl <T: Float> BVec<T, 3> {
+    
+}
 // friends
 impl <const N: usize> Mul<BVec<f32, N>> for f32 {
     type Output = BVec<f32, N>;
@@ -163,7 +174,7 @@ pub type Matrix42 = BMatrix<f32, 4, 2>;
 pub type Matrix43 = BMatrix<f32, 4, 3>;
 pub type Matrix4 = BMatrix<f32, 4, 4>;
 pub type Matrix44 = BMatrix<f32, 4, 4>;
-// transposed
+// transpose
 impl <T: Float, const M: usize, const N: usize> BMatrix<T, M, N> {
     pub fn transpose(&self) -> BMatrix<T, N, M> {
         let mut ans: BMatrix<T, N, M> = BMatrix::zero();
@@ -175,6 +186,31 @@ impl <T: Float, const M: usize, const N: usize> BMatrix<T, M, N> {
         ans
     }
 }
+pub trait Det<T: Float> {
+    fn det(&self) -> T;
+}
+// determinant
+impl <T: Float> Det<T> for BMatrix<T, 1, 1> {
+    fn det(&self) -> T {
+        self.v[0][0]
+    }
+}
+impl <T: Float> Det<T> for BMatrix<T, 2, 2> {
+    fn det(&self) -> T {
+        self.v[0][0] * self.v[1][1] - self.v[0][1] * self.v[1][0]
+    }
+}
+impl <T: Float> Det<T> for BMatrix<T, 3, 3> {
+    fn det(&self) -> T {
+          self.v[0][0] * self.v[1][1] * self.v[2][2]
+        - self.v[0][0] * self.v[1][2] * self.v[2][1]
+        + self.v[0][1] * self.v[1][2] * self.v[2][0]
+        - self.v[0][1] * self.v[1][0] * self.v[2][2]
+        + self.v[0][2] * self.v[1][0] * self.v[2][1]
+        - self.v[0][2] * self.v[1][1] * self.v[2][0]
+    }
+}
+
 impl <T: Float, const M: usize, const N: usize> Zero for BMatrix<T, M, N> {
     fn zero() -> Self {
         BMatrix { v: [[T::zero(); N]; M] }

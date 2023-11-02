@@ -38,7 +38,6 @@ impl BezierCanvas<u32, RGBA> {
             }
         }
         writer.write_image_data(&data).unwrap();
-
     }
 }
 impl BezierCanvas<u32, RGB> {

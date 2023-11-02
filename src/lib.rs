@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use linalg::Vec2;
 use num::traits::Zero;
 mod types;
-mod export;
+mod convert;
+pub mod shader;
 pub mod linalg;
 use types::{ColorType, InternalColorType, blend::BlendMode};
 
@@ -64,36 +65,45 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
     }
 
     pub fn fill_rect(&mut self, pos: &Vec2, size: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
-        let x_0: usize = pos.x()
-            .round().clamp(0.0f32, (self.width - 1) as f32) as usize;
-        let x_1: usize = (pos.x() + size.x())
-            .round().clamp(0.0f32, (self.width - 1) as f32) as usize;
-        let y_0: usize = pos.y()
-            .round().clamp(0.0f32, (self.height - 1) as f32) as usize;
-        let y_1: usize = (pos.y() + size.y())
-            .round().clamp(0.0f32, (self.height - 1) as f32) as usize;
-        for y in y_0..=y_1 {
-            for x in x_0..=x_1 {
+        let x_0: usize = (pos.x()
+            .clamp(0.0f32, 1.0f32) * (self.width as f32))
+            .floor() as usize;
+        let x_1: usize = ((pos.x() + size.x())
+            .clamp(0.0f32, 1.0f32) * (self.width as f32))
+            .ceil() as usize;
+        let y_0: usize = (pos.y()
+            .clamp(0.0f32, 1.0f32) * (self.height as f32))
+            .floor() as usize;
+        let y_1: usize = ((pos.y() + size.y())
+            .clamp(0.0f32, 1.0f32) * (self.height as f32))
+            .ceil() as usize;
+        for y in y_0..y_1 {
+            for x in x_0..x_1 {
                 self.set_pixel(x, y, color, blend_mode);
             }   
-        }
+        } 
     }
     pub fn fill_oval(&mut self, pos: &Vec2, size: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
-        let x_0 = (pos.x() - size.x())
-            .round().clamp(0.0f32, (self.width - 1) as f32) as usize;
-        let x_1 = (pos.x() + size.x())
-            .round().clamp(0.0f32, (self.width - 1) as f32) as usize;
-        let y_0 = (pos.y() - size.y())
-            .round().clamp(0.0f32, (self.height - 1) as f32) as usize;
-        let y_1 = (pos.y() + size.y())
-            .round().clamp(0.0f32, (self.height - 1) as f32) as usize;
+        let x_0 = ((pos.x() - size.x())
+            .clamp(0.0f32, 1.0f32) * (self.width as f32))
+            .floor() as usize;
+        let x_1 = ((pos.x() + size.x())
+            .clamp(0.0f32, 1.0f32) * (self.width as f32))
+            .ceil() as usize;
+        let y_0 = ((pos.y() - size.y())
+            .clamp(0.0f32, 1.0f32) * (self.height as f32))
+            .floor() as usize;
+        let y_1 = ((pos.y() + size.y())
+            .clamp(0.0f32, 1.0f32) * (self.height as f32))
+            .ceil() as usize;
+        
         let w2 = size.x() * size.x();
         let h2 = size.y() * size.y();
-        for y in y_0..=y_1 {
-            let rel_y: f32 = (y as f32) - pos.y();
+        for y in y_0..y_1 {
+            let rel_y: f32 = ((y as f32) / (self.height as f32)) - pos.y();
             let y2 = rel_y * rel_y;
-            for x in x_0..=x_1 {
-                let rel_x: f32 = (x as f32) - pos.x();
+            for x in x_0..x_1 {
+                let rel_x: f32 = ((x as f32) / (self.width as f32)) - pos.x();
                 let x2 = rel_x * rel_x;
                 if x2 / w2 + y2 / h2 < 1f32 {
                     self.set_pixel(x, y, color, blend_mode)
@@ -101,33 +111,40 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
             }
         }
     }
+
     pub fn fill_circle(&mut self, pos: &Vec2, radius: f32, color: &ExternalType, blend_mode: BlendMode) {
         self.fill_oval(pos, &Vec2 {v: [radius, radius]}, color, blend_mode);
     }
+
     fn stroke_line_gentle(&mut self, pos0: &Vec2, pos1: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
         // with abs(slope) < 1
-        let x_0 = pos0.x()
-            .round().clamp(0.0f32, pos1.x()) as usize;
-        let x_1 = pos0.x()
-            .round().clamp(pos1.x(), (self.width - 1) as f32) as usize;
-        for x in x_0..=x_1 {
-            let y = (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * (x as f32) + (pos0.y() - (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * pos0.x());
-            if y >= 0.0f32 && y < self.height as f32 {
-                self.set_pixel(x, y as usize, color, blend_mode);
+        let x_0 = (pos0.x()
+            .clamp(0.0f32, pos1.x()) * (self.width as f32))
+            .floor() as usize;
+        let x_1 = (pos0.x()
+            .clamp(pos1.x(), 1.0f32) * (self.width as f32))
+            .ceil() as usize;
+        for x in x_0..x_1 {
+            let y = (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * ((x as f32) / (self.width as f32)) +
+             (pos0.y() - (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * pos0.x());
+            if y >= 0.0f32 && y < 1.0f32 {
+                self.set_pixel(x, (y * (self.height as f32)) as usize, color, blend_mode);
             }
         }
     }
-
     fn stroke_line_steep(&mut self, pos0: &Vec2, pos1: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
         // with abs(slope) < 1
-        let y_0 = pos0.y().round()
-            .clamp(0.0f32, pos1.y()) as usize;
-        let y_1 = pos0.y().round()
-            .clamp(pos1.y(), (self.height - 1) as f32) as usize;
-        for y in y_0..=y_1 {
-            let x = (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * (y as f32) + (pos0.x() - (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * pos0.y());
-            if x >= 0.0f32 && x < self.width as f32 {
-                self.set_pixel(x as usize, y, color, blend_mode);
+        let y_0 = (pos0.y()
+            .clamp(0.0f32, pos1.y()) * (self.height as f32))
+            .floor() as usize;
+        let y_1 = (pos0.y()
+            .clamp(pos1.y(), 1.0f32) * (self.height as f32))
+            .ceil() as usize;
+        for y in y_0..y_1 {
+            let x = (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * ((y as f32) / (self.height as f32)) +
+             (pos0.x() - (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * pos0.y());
+            if x >= 0.0f32 && x < 1.0f32 {
+                self.set_pixel((x * (self.width as f32)) as usize , y, color, blend_mode);
             }
         }
     }
