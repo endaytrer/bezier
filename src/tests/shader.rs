@@ -61,22 +61,30 @@ fn shade() {
         .set_size(1200, 800)
         .create_canvas::<u32, RGBA>();
     let texture = BezierCanvas::<u32, RGB>::from_png("avatar.png");
-    canvas.shade::<VIn, SU, BVec<f32, 6>, VS, FS>(&[
-        VIn {
-            xy: Vec2::new(0.5, 0.25),
+    let mut vertices: Vec<VIn> = Vec::new();
+    for _ in 0..1000 {
+
+        let pos0 = Vec2::new(rand::random(), rand::random());
+        let pos1 = Vec2::new(rand::random(), rand::random());
+        let pos2 = Vec2::new(rand::random(), rand::random());
+        vertices.push(VIn {
+            xy: pos0,
             uv: Vec2::new(0.5, 0.25),
             color: Vec4::new(1.0, 0.0, 1.0, 1.0)
-        },
-        VIn {
-            xy: Vec2{v: [0.25, 0.75]},
-            uv: Vec2{v: [0.25, 0.75]},
+        });
+        
+        vertices.push(VIn {
+            xy: pos1,
+            uv: Vec2::new(0.25, 0.75),
             color: Vec4::new(1.0, 1.0, 0.0, 1.0)
-        },
-        VIn {
-            xy: Vec2{v: [0.75, 0.75]},
-            uv: Vec2{v: [0.75, 0.75]},
+        });
+        vertices.push(VIn {
+            xy: pos2,
+            uv: Vec2::new(0.75, 0.75),
             color: Vec4::new(0.0, 1.0, 1.0, 1.0)
-        }],
+        });
+    }
+    canvas.shade::<VIn, SU, BVec<f32, 6>, VS, FS>(&vertices,
         &SU {
             texture,
         },

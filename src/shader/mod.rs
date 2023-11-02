@@ -46,12 +46,12 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
             .map(|v| VertShader::shade(v, uniform))
             .collect();
         for i in (0..out.len()).step_by(3) {
-            let v0 = out[3 * i + 0].coord;
-            let v1 = out[3 * i + 1].coord;
-            let v2 = out[3 * i + 2].coord;
-            let attr0 = out[3 * i + 0].varying;
-            let attr1 = out[3 * i + 1].varying;
-            let attr2 = out[3 * i + 2].varying;
+            let v0 = out[i + 0].coord;
+            let v1 = out[i + 1].coord;
+            let v2 = out[i + 2].coord;
+            let attr0 = out[i + 0].varying;
+            let attr1 = out[i + 1].varying;
+            let attr2 = out[i + 2].varying;
             let min_x = (v0.x()
                 .clamp(0f32, v1.x())
                 .clamp(0f32, v2.x()) * ((self.width - 1) as f32))
