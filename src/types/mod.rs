@@ -2,7 +2,7 @@ use num::Zero;
 
 use crate::linalg::Vec4;
 pub mod blend;
-pub trait InternalColorType: Zero + Clone + Copy {}
+pub trait InternalColorType: Sync + Send + Zero + Clone + Copy {}
 impl InternalColorType for u8 {}
 impl InternalColorType for u16 {}
 impl InternalColorType for u32 {}

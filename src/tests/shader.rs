@@ -1,4 +1,4 @@
-use crate::{shader::{vert_shader::VertexShader, VertexOut, frag_shader::FragmentShader, FragOut}, linalg::{Vec2, BVec, Vec4}, types::{RGBA, blend::BlendMode, ColorType, RGB}, BezierCanvasFactory, BezierCanvas, texture::{LinearFilter, ClampToEdge, NearestFilter, CubicFilter}, convert::PNGCompatible};
+use crate::{shader::{vert_shader::VertexShader, VertexOut, frag_shader::FragmentShader, FragOut}, linalg::{Vec2, BVec, Vec4}, types::{RGBA, blend::BlendMode, ColorType, RGB}, BezierCanvasFactory, BezierCanvas, texture::{LinearFilter, ClampToEdge}, convert::PNGCompatible};
 
 pub struct VS {}
 

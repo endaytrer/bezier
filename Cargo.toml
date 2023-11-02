@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 num = "0.4.1"
 png = "0.17.10"
+rayon = "1.8.0"
 static_assertions = "1.1.0"

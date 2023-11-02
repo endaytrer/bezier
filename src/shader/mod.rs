@@ -30,19 +30,21 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Fr
         FragOut { color: color, depth: depth, phantom_data: PhantomData }
     }
 }
+
+use rayon::prelude::*;
 impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> BezierCanvas<InternalType, ExternalType> {
     pub fn shade<
-        Attribute,
-        Uniform,
-        Intermediate: Linear<f32>,
+        Attribute: Sync,
+        Uniform: Sync,
+        Intermediate: Linear<f32> + Send + Sync,
         VertShader: VertexShader<Attribute = Attribute, Out = Intermediate, Uniform = Uniform>,
         FragShader: FragmentShader<In = Intermediate, Uniform = Uniform, InternalType = InternalType, ExternalType = ExternalType>>
         (&mut self, attribute: &[Attribute], uniform: &Uniform, blend_mode: BlendMode) {
-        let mut depth_buffer = vec![vec![f32::NEG_INFINITY; self.width]; self.height];
-        let mut out: Vec<VertexOut<Intermediate>> = Vec::new();
-        for v in attribute {
-            out.push(VertShader::shade(v, uniform));
-        }
+
+        let mut depth_buffer = vec![f32::NEG_INFINITY; self.width * self.height];
+        let out: Vec<VertexOut<Intermediate>> = attribute.into_par_iter()
+            .map(|v| VertShader::shade(v, uniform))
+            .collect();
         for i in (0..out.len()).step_by(3) {
             let v0 = out[3 * i + 0].coord;
             let v1 = out[3 * i + 1].coord;
@@ -60,47 +62,67 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
                 .round() as usize;
             let min_y = (v0.y()
                 .clamp(0f32, v1.y())
-                .clamp(0f32, v2.y()) * (self.height as f32))
-                .floor() as usize;
+                .clamp(0f32, v2.y()) * ((self.height - 1) as f32))
+                .round() as usize;
             let max_y = (v0.y()
                 .clamp(v1.y(), 1f32)
-                .clamp(v2.y(), 1f32) * (self.height as f32))
-                .ceil() as usize;
+                .clamp(v2.y(), 1f32) * ((self.height - 1) as f32))
+                .round() as usize;
 
             let mat = Matrix2 {v: [(v1 - v0).v, (v2 - v0).v]}.transpose();
             let det_mat = mat.det();
             if det_mat.abs() < f32::EPSILON {
                 return;
             }
-            for y in min_y..max_y {
-                for x in min_x..max_x {
-                    let coord = Vec2 {v: [(x as f32) / (self.width as f32), (y as f32) / (self.height as f32)]};
-                    let ans = coord - v0;
-                    let det_t = Matrix2 {
-                        v: [[ans.x(), mat.v[0][1]],
-                            [ans.y(), mat.v[1][1]]]
-                    }.det();
-                    let det_u = Matrix2 {
-                        v: [[mat.v[0][0], ans.x()],
-                            [mat.v[1][0], ans.y()]]
-                    }.det();
+            let depth_chunks = depth_buffer.par_chunks_mut(self.width)
+                .skip(min_y)
+                .take(max_y + 1 - min_y);
+            let pixel_chunks = self.pixels.par_chunks_mut(self.width)
+                .skip(min_y)
+                .take(max_y + 1 - min_y);
 
-                    let t = det_t / det_mat;
-                    let u = det_u / det_mat;
-                    if t < 0f32 || u < 0f32 || (1f32 - t - u) < 0f32 {
-                        continue;
-                    }
-                    let attrib = 
-                        attr0 * (1f32 - t - u) +
-                        attr1 * t +
-                        attr2 * u;
-                    let shaded = FragShader::shade(&attrib, uniform);
-                    if shaded.depth > depth_buffer[y][x] {
-                        depth_buffer[y][x] = shaded.depth;
-                        self.set_pixel(x, y, &shaded.color, blend_mode);
-                    }
-                }
-            }
+            depth_chunks.zip(pixel_chunks)
+            .enumerate()
+            .for_each(|(i, (depth_range, pixel_range))| {
+                let y = i + min_y;
+                let depth_iter = depth_range.par_iter_mut()
+                    .skip(min_x)
+                    .take(max_x + 1 - min_x);
+                let pixel_iter = pixel_range.par_iter_mut()
+                    .skip(min_x)
+                    .take(max_x + 1 - min_x);
+
+                depth_iter.zip(pixel_iter)
+                    .enumerate()
+                    .for_each(|(j, (depth, pixel))| {
+                        let x = j + min_x;
+                        let coord = Vec2 {v: [(x as f32) / ((self.width - 1) as f32), (y as f32) / ((self.height - 1) as f32)]};
+                        let ans = coord - v0;
+                        let det_t = Matrix2 {
+                            v: [[ans.x(), mat.v[0][1]],
+                                [ans.y(), mat.v[1][1]]]
+                        }.det();
+                        let det_u = Matrix2 {
+                            v: [[mat.v[0][0], ans.x()],
+                                [mat.v[1][0], ans.y()]]
+                        }.det();
+    
+                        let t = det_t / det_mat;
+                        let u = det_u / det_mat;
+                        if t < 0f32 || u < 0f32 || (1f32 - t - u) < 0f32 {
+                            return;
+                        }
+                        let attrib = 
+                            attr0 * (1f32 - t - u) +
+                            attr1 * t +
+                            attr2 * u;
+                        let shaded = FragShader::shade(&attrib, uniform);
+                        if shaded.depth > *depth {
+                            *depth = shaded.depth;
+                            *pixel = blend_mode.blend(*pixel, &shaded.color);
+                        }
+                    })
+            });
         }
     }
 }
