@@ -1,19 +1,35 @@
-use crate::{shader::{vert_shader::VertexShader, MeshOut, frag_shader::FragmentShader, FragOut}, linalg::{Vec2, Vec4}, types::{RGBA, blend::BlendMode}, BezierCanvasFactory};
+use crate::{shader::{vert_shader::VertexShader, VertexOut, frag_shader::FragmentShader, FragOut}, linalg::{Vec2, BVec, Vec4}, types::{RGBA, blend::BlendMode, ColorType, RGB}, BezierCanvasFactory, BezierCanvas, texture::{LinearFilter, ClampToEdge, NearestFilter, CubicFilter}, convert::PNGCompatible};
 
 pub struct VS {}
+
+pub struct SU {
+    texture: BezierCanvas<u32, RGB>
+}
+
 pub struct VIn {
     xy: Vec2,
     color: Vec4,
+    uv: Vec2,
 }
 impl VertexShader for VS {
-    type In = VIn;
+    type Attribute = VIn;
 
-    type Out = Vec4;
+    type Uniform = SU;
+    type Out = BVec<f32, 6>;
 
-    fn shade(vert: &Self::In) -> MeshOut<Self::Out> {
-        let ans = MeshOut{
-            coord: vert.xy,
-            attribute: vert.color,
+    fn shade(attr: &Self::Attribute, _uniform: &Self::Uniform) -> VertexOut<Self::Out> {
+        let ans = VertexOut::<BVec<f32, 6>> {
+            coord: attr.xy,
+            varying: BVec {
+                v: [
+                    attr.uv.x(),
+                    attr.uv.y(),
+                    attr.color.x(),
+                    attr.color.y(),
+                    attr.color.z(),
+                    attr.color.w(),
+                ]
+            },
         };
         ans
     }
@@ -22,15 +38,20 @@ impl VertexShader for VS {
 pub struct FS {}
 
 impl FragmentShader for FS {
-    type AttrType = Vec4;
+    type In = BVec<f32, 6>;
+
+    type Uniform = SU;
 
     type InternalType = u32;
 
     type ExternalType = RGBA;
 
-    fn shade(attribute: &Self::AttrType) -> FragOut<Self::InternalType, Self::ExternalType> {
-        FragOut::new(RGBA {r: attribute.x() as u8, g: attribute.y() as u8, b: attribute.z() as u8, a: attribute.w() as u8}, 0.0f32)
+    fn shade(attribute: &Self::In, uniform: &Self::Uniform) -> FragOut<Self::InternalType, Self::ExternalType> {
+        let color = uniform.texture.sample::<LinearFilter, ClampToEdge, ClampToEdge>(&attribute.xy());
+        let color_2 = Vec4::new(attribute.v[2], attribute.v[3], attribute.v[4], attribute.v[5]);
+        FragOut::new(RGBA::from_vec4(color.star(&color_2)), 0.0f32)
     }
+
 }
 
 #[test]
@@ -39,21 +60,39 @@ fn shade() {
     let mut canvas = BezierCanvasFactory::new()
         .set_size(1200, 800)
         .create_canvas::<u32, RGBA>();
-
-    canvas.shade::<VIn, Vec4, VS, FS>(&[
+    let texture = BezierCanvas::<u32, RGB>::from_png("avatar.png");
+    canvas.shade::<VIn, SU, BVec<f32, 6>, VS, FS>(&[
         VIn {
-            xy: Vec2{v: [0.5, 0.25]},
-            color: Vec4{v: [255f32, 0f32, 0f32, 255f32]}
+            xy: Vec2::new(0.5, 0.25),
+            uv: Vec2::new(0.5, 0.25),
+            color: Vec4::new(1.0, 0.0, 1.0, 1.0)
         },
         VIn {
             xy: Vec2{v: [0.25, 0.75]},
-            color: Vec4{v: [0f32, 255f32, 0f32, 255f32]}
+            uv: Vec2{v: [0.25, 0.75]},
+            color: Vec4::new(1.0, 1.0, 0.0, 1.0)
         },
         VIn {
             xy: Vec2{v: [0.75, 0.75]},
-            color: Vec4{v: [0f32, 0f32, 255f32, 255f32]}
+            uv: Vec2{v: [0.75, 0.75]},
+            color: Vec4::new(0.0, 1.0, 1.0, 1.0)
         }],
+        &SU {
+            texture,
+        },
         BlendMode::Alpha
     );
+    let poses = [
+        Vec2{v: [0.25, 0.25]},
+        Vec2{v: [0.325, 0.325]},
+        Vec2{v: [0.75, 0.25]},
+        Vec2{v: [0.875, 0.375]},
+        Vec2{v: [1.0, 0.5]},
+        Vec2{v: [-0.0625, 0.375]},
+        Vec2{v: [0.375, 0.95]}
+    ];
+    for i in (1..poses.len()).step_by(3) {
+        canvas.stroke_bezier::<4>(&poses[i - 1..i + 3], &RGBA {r: 255, g: 255, b: 255, a: 255}, 50, BlendMode::Alpha);
+    }
     canvas.export_png("target/debug/examples/triangle.png");
 }

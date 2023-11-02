@@ -1,8 +1,9 @@
 use num::One;
 
 use crate::BezierCanvasFactory;
+use crate::convert::PNGCompatible;
 use crate::linalg::{Vec2, Matrix2, Det};
-use crate::types::{RGB, R, RGBA, blend::BlendMode};
+use crate::types::{RGB, RGBA, blend::BlendMode};
 
 mod shader;
 #[test]
@@ -26,15 +27,6 @@ fn rectangle_and_lines() {
     assert_eq!(canvas.get_pixel(0, 0), RGB {r: 0, g: 0, b: 0});
     assert_eq!(canvas.get_pixel(200, 200), RGB {r: 255, g: 0, b: 0});
 }
-#[test]
-#[should_panic]
-fn read_outside() {
-    let canvas = BezierCanvasFactory::new()
-        .set_size(1200, 800)
-        .create_canvas::<u8, R>();
-    canvas.get_pixel(1200, 0);
-}
-
 #[test]
 fn linear_algebra() {
     let identity = Matrix2::one();

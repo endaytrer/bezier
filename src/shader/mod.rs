@@ -7,15 +7,15 @@ use self::{vert_shader::VertexShader, frag_shader::FragmentShader};
 pub mod vert_shader;
 pub mod frag_shader;
 
-pub struct MeshOut<T: Linear<f32>> {
+pub struct VertexOut<T: Linear<f32>> {
     pub coord: Vec2,
-    pub attribute: T
+    pub varying: T
 }
-impl <T: Linear<f32>> MeshOut<T> {
-    pub fn new(coord: Vec2, attribute: T) -> Self {
-        MeshOut {
+impl <T: Linear<f32>> VertexOut<T> {
+    pub fn new(coord: Vec2, varying: T) -> Self {
+        VertexOut {
             coord,
-            attribute
+            varying
         }
     }
 }
@@ -31,27 +31,33 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Fr
     }
 }
 impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> BezierCanvas<InternalType, ExternalType> {
-    pub fn shade<In, Intermediate: Linear<f32>, VertShader: VertexShader<In = In, Out = Intermediate>, FragShader: FragmentShader<AttrType = Intermediate, InternalType = InternalType, ExternalType = ExternalType>>(&mut self, vertices: &[In], blend_mode: BlendMode) {
+    pub fn shade<
+        Attribute,
+        Uniform,
+        Intermediate: Linear<f32>,
+        VertShader: VertexShader<Attribute = Attribute, Out = Intermediate, Uniform = Uniform>,
+        FragShader: FragmentShader<In = Intermediate, Uniform = Uniform, InternalType = InternalType, ExternalType = ExternalType>>
+        (&mut self, attribute: &[Attribute], uniform: &Uniform, blend_mode: BlendMode) {
         let mut depth_buffer = vec![vec![f32::NEG_INFINITY; self.width]; self.height];
-        let mut out: Vec<MeshOut<Intermediate>> = Vec::new();
-        for v in vertices {
-            out.push(VertShader::shade(v));
+        let mut out: Vec<VertexOut<Intermediate>> = Vec::new();
+        for v in attribute {
+            out.push(VertShader::shade(v, uniform));
         }
         for i in (0..out.len()).step_by(3) {
             let v0 = out[3 * i + 0].coord;
             let v1 = out[3 * i + 1].coord;
             let v2 = out[3 * i + 2].coord;
-            let attr0 = out[3 * i + 0].attribute;
-            let attr1 = out[3 * i + 1].attribute;
-            let attr2 = out[3 * i + 2].attribute;
+            let attr0 = out[3 * i + 0].varying;
+            let attr1 = out[3 * i + 1].varying;
+            let attr2 = out[3 * i + 2].varying;
             let min_x = (v0.x()
                 .clamp(0f32, v1.x())
-                .clamp(0f32, v2.x()) * (self.width as f32))
-                .floor() as usize;
+                .clamp(0f32, v2.x()) * ((self.width - 1) as f32))
+                .round() as usize;
             let max_x = (v0.x()
                 .clamp(v1.x(), 1f32)
-                .clamp(v2.x(), 1f32) * (self.width as f32))
-                .ceil() as usize;
+                .clamp(v2.x(), 1f32) * ((self.width - 1) as f32))
+                .round() as usize;
             let min_y = (v0.y()
                 .clamp(0f32, v1.y())
                 .clamp(0f32, v2.y()) * (self.height as f32))
@@ -88,7 +94,7 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
                         attr0 * (1f32 - t - u) +
                         attr1 * t +
                         attr2 * u;
-                    let shaded = FragShader::shade(&attrib);
+                    let shaded = FragShader::shade(&attrib, uniform);
                     if shaded.depth > depth_buffer[y][x] {
                         depth_buffer[y][x] = shaded.depth;
                         self.set_pixel(x, y, &shaded.color, blend_mode);

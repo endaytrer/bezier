@@ -1,9 +1,10 @@
 use crate::linalg::Linear;
 
-use super::MeshOut;
+use super::VertexOut;
 
 pub trait VertexShader {
-    type In;
+    type Attribute;
+    type Uniform;
     type Out: Linear<f32>;
-    fn shade(vert: &Self::In) -> MeshOut<Self::Out>;
+    fn shade(vert: &Self::Attribute, uniform: &Self::Uniform) -> VertexOut<Self::Out>;
 }

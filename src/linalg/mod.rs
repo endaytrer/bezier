@@ -2,14 +2,32 @@ use std::ops::{Add, Mul, Sub};
 
 use num::{traits::Float, Zero, One};
 
-pub trait Linear<T: Float>: Clone + Copy + Zero + Mul<T, Output = Self> + Add<Self, Output = Self> {}
+pub trait Linear<T: Float>: Clone + Copy + Mul<T, Output = Self> + Add<Self, Output = Self> {}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Null {}
+impl <T: Float> Linear<T> for Null {}
+
+impl Add for Null {
+    type Output = Null;
+
+    fn add(self, _rhs: Self) -> Self::Output {
+        Null {}
+    }
+}
+impl <T: Float> Mul<T> for Null {
+    type Output = Null;
+
+    fn mul(self, _rhs: T) -> Self::Output {
+        Null {}
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct BVec<T: Float, const N: usize> {
     pub v: [T; N]
 }
 
-pub type BNull = BVec<f32, 0>;
 pub type Vec2 = BVec<f32, 2>;
 pub type Vec3 = BVec<f32, 3>;
 pub type Vec4 = BVec<f32, 4>;
@@ -18,7 +36,30 @@ impl Linear<f32> for f32 {}
 impl Linear<f64> for f64 {}
 
 impl <T: Float, const N: usize> Linear<T> for BVec<T, N> {}
-// x, y, z, w, norm, normalize
+// initializer
+impl <T: Float> BVec<T, 2> {
+    pub fn new(x: T, y: T) -> Self {
+        Self {
+            v: [x, y]
+        }
+    }
+}
+impl <T: Float> BVec<T, 3> {
+    pub fn new(x: T, y: T, z: T) -> Self {
+        Self {
+            v: [x, y, z]
+        }
+    }
+}
+impl <T: Float> BVec<T, 4> {
+    pub fn new(x: T, y: T, z: T, w: T) -> Self {
+        Self {
+            v: [x, y, z, w]
+        }
+    }
+}
+
+// x, y, z, w, norm, normalize, bitwise multiplication
 impl <T: Float, const N: usize> BVec<T, N> {
     pub fn x(&self) -> T {
         self.v[0]
@@ -75,6 +116,13 @@ impl <T: Float, const N: usize> BVec<T, N> {
     }
     pub fn normalize(&self) -> BVec<T, N> {
         return self.clone() * (T::one() / self.norm())
+    }
+    pub fn star(&self, rhs: &Self) -> BVec<T, N> {
+        let mut ans = BVec::zero();
+        for i in 0..N {
+            ans.v[i] = self.v[i] * rhs.v[i];
+        }
+        ans
     }
 }
 
@@ -139,7 +187,14 @@ impl <T: Float, const N: usize> Mul for BVec<T, N> {
 }
 // cross product
 impl <T: Float> BVec<T, 3> {
-    
+    pub fn cross(&self, other: BVec<T, 3>) -> BVec<T, 3> {
+
+        BVec::<T, 3> { v: [
+            self.v[1] * other.v[2] - self.v[2] * other.v[1],
+            self.v[2] * other.v[0] - self.v[0] * other.v[2],
+            self.v[0] * other.v[1] - self.v[1] * other.v[0],
+        ]}
+    }
 }
 // friends
 impl <const N: usize> Mul<BVec<f32, N>> for f32 {

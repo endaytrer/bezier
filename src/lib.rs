@@ -6,6 +6,8 @@ mod types;
 mod convert;
 pub mod shader;
 pub mod linalg;
+pub mod texture;
+
 use types::{ColorType, InternalColorType, blend::BlendMode};
 
 pub struct BezierCanvasFactory {
@@ -55,54 +57,53 @@ const C: [[usize; MAX_PASCAL]; MAX_PASCAL] = [
 ];
 
 impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> BezierCanvas<InternalType, ExternalType> {
-    pub fn get_pixel(&self, x: usize, y: usize) -> ExternalType {
-        assert!(x < self.width && y < self.height);
+    fn get_pixel(&self, x: usize, y: usize) -> ExternalType {
         ExternalType::from_value(self.pixels[y * self.width + x])
     }
 
     fn set_pixel(&mut self, x: usize, y: usize, pixel: &ExternalType, blend_mode: BlendMode) {
-        self.pixels[y * self.width + x] = pixel.blend(self.pixels[y * self.width + x], blend_mode);
+        self.pixels[y * self.width + x] = blend_mode.blend::<InternalType, ExternalType>(self.pixels[y * self.width + x], pixel);
     }
 
     pub fn fill_rect(&mut self, pos: &Vec2, size: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
         let x_0: usize = (pos.x()
-            .clamp(0.0f32, 1.0f32) * (self.width as f32))
-            .floor() as usize;
+            .clamp(0.0f32, 1.0f32) * ((self.width - 1) as f32))
+            .round() as usize;
         let x_1: usize = ((pos.x() + size.x())
-            .clamp(0.0f32, 1.0f32) * (self.width as f32))
-            .ceil() as usize;
+            .clamp(0.0f32, 1.0f32) * ((self.width - 1) as f32))
+            .round() as usize;
         let y_0: usize = (pos.y()
-            .clamp(0.0f32, 1.0f32) * (self.height as f32))
-            .floor() as usize;
+            .clamp(0.0f32, 1.0f32) * ((self.height - 1) as f32))
+            .round() as usize;
         let y_1: usize = ((pos.y() + size.y())
-            .clamp(0.0f32, 1.0f32) * (self.height as f32))
-            .ceil() as usize;
-        for y in y_0..y_1 {
-            for x in x_0..x_1 {
+            .clamp(0.0f32, 1.0f32) * ((self.height - 1) as f32))
+            .round() as usize;
+        for y in y_0..=y_1 {
+            for x in x_0..=x_1 {
                 self.set_pixel(x, y, color, blend_mode);
             }   
         } 
     }
     pub fn fill_oval(&mut self, pos: &Vec2, size: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
         let x_0 = ((pos.x() - size.x())
-            .clamp(0.0f32, 1.0f32) * (self.width as f32))
-            .floor() as usize;
+            .clamp(0.0f32, 1.0f32) * ((self.width - 1) as f32))
+            .round() as usize;
         let x_1 = ((pos.x() + size.x())
-            .clamp(0.0f32, 1.0f32) * (self.width as f32))
-            .ceil() as usize;
+            .clamp(0.0f32, 1.0f32) * ((self.width - 1) as f32))
+            .round() as usize;
         let y_0 = ((pos.y() - size.y())
-            .clamp(0.0f32, 1.0f32) * (self.height as f32))
-            .floor() as usize;
+            .clamp(0.0f32, 1.0f32) * ((self.height - 1) as f32))
+            .round() as usize;
         let y_1 = ((pos.y() + size.y())
-            .clamp(0.0f32, 1.0f32) * (self.height as f32))
-            .ceil() as usize;
+            .clamp(0.0f32, 1.0f32) * ((self.height - 1) as f32))
+            .round() as usize;
         
         let w2 = size.x() * size.x();
         let h2 = size.y() * size.y();
-        for y in y_0..y_1 {
+        for y in y_0..=y_1 {
             let rel_y: f32 = ((y as f32) / (self.height as f32)) - pos.y();
             let y2 = rel_y * rel_y;
-            for x in x_0..x_1 {
+            for x in x_0..=x_1 {
                 let rel_x: f32 = ((x as f32) / (self.width as f32)) - pos.x();
                 let x2 = rel_x * rel_x;
                 if x2 / w2 + y2 / h2 < 1f32 {
@@ -119,32 +120,32 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
     fn stroke_line_gentle(&mut self, pos0: &Vec2, pos1: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
         // with abs(slope) < 1
         let x_0 = (pos0.x()
-            .clamp(0.0f32, pos1.x()) * (self.width as f32))
-            .floor() as usize;
+            .clamp(0.0f32, pos1.x()) * ((self.width - 1) as f32))
+            .round() as usize;
         let x_1 = (pos0.x()
-            .clamp(pos1.x(), 1.0f32) * (self.width as f32))
-            .ceil() as usize;
-        for x in x_0..x_1 {
-            let y = (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * ((x as f32) / (self.width as f32)) +
+            .clamp(pos1.x(), 1.0f32) * ((self.width - 1) as f32))
+            .round() as usize;
+        for x in x_0..=x_1 {
+            let y = (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * ((x as f32) / ((self.width - 1) as f32)) +
              (pos0.y() - (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * pos0.x());
-            if y >= 0.0f32 && y < 1.0f32 {
-                self.set_pixel(x, (y * (self.height as f32)) as usize, color, blend_mode);
+            if y >= 0.0f32 && y <= 1.0f32 {
+                self.set_pixel(x, (y * ((self.height - 1) as f32)) as usize, color, blend_mode);
             }
         }
     }
     fn stroke_line_steep(&mut self, pos0: &Vec2, pos1: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
         // with abs(slope) < 1
         let y_0 = (pos0.y()
-            .clamp(0.0f32, pos1.y()) * (self.height as f32))
-            .floor() as usize;
+            .clamp(0.0f32, pos1.y()) * ((self.height - 1) as f32))
+            .round() as usize;
         let y_1 = (pos0.y()
-            .clamp(pos1.y(), 1.0f32) * (self.height as f32))
-            .ceil() as usize;
-        for y in y_0..y_1 {
-            let x = (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * ((y as f32) / (self.height as f32)) +
+            .clamp(pos1.y(), 1.0f32) * ((self.height - 1) as f32))
+            .round() as usize;
+        for y in y_0..=y_1 {
+            let x = (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * ((y as f32) / ((self.height - 1) as f32)) +
              (pos0.x() - (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * pos0.y());
-            if x >= 0.0f32 && x < 1.0f32 {
-                self.set_pixel((x * (self.width as f32)) as usize , y, color, blend_mode);
+            if x >= 0.0f32 && x <=1.0f32 {
+                self.set_pixel((x * ((self.width - 1) as f32)) as usize , y, color, blend_mode);
             }
         }
     }
