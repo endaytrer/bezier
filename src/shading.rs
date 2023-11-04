@@ -33,7 +33,7 @@ pub trait VertexShader {
     type Attribute: Sync;
     type Uniform: Sync;
     type Out: Linear<f32> + Send + Sync;
-    fn shade(vert: &Self::Attribute, uniform: &Self::Uniform) -> VertexOut<Self::Out>;
+    fn shade(attr: &Self::Attribute, uniform: &Self::Uniform) -> VertexOut<Self::Out>;
 }
 pub trait FragmentShader {
     type Uniform: Sync;

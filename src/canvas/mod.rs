@@ -128,11 +128,14 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
     fn stroke_line_gentle(&mut self, pos0: &Vec2, pos1: &Vec2, color: &ExternalType, blend_mode: BlendMode) {
         // with abs(slope) < 1
         let x_0 = Self::xy_to_pixel(pos0.x().clamp(0.0, pos1.x()), self.width);
-        let x_1: usize = Self::xy_to_pixel(pos0.x().clamp(pos1.x(), 1.0), self.width);
+        let mut x_1: usize = Self::xy_to_pixel(pos0.x().clamp(pos1.x(), 1.0), self.width);
+        if x_1 >= self.width {
+            x_1 = self.height - 1;
+        }
         for x in x_0..=x_1 {
             let y = (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * Self::pixel_to_xy(x, self.width) +
              (pos0.y() - (pos1.y() - pos0.y()) / (pos1.x() - pos0.x()) * pos0.x());
-            if y >= 0.0f32 && y <= 1.0f32 {
+            if y >= 0.0f32 && y < 1.0f32 {
                 self.set_pixel(x, Self::xy_to_pixel(y, self.height), color, blend_mode);
             }
         }
@@ -141,11 +144,14 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
         // with abs(slope) < 1
 
         let y_0 = Self::xy_to_pixel(pos0.y().clamp(0.0, pos1.y()), self.height);
-        let y_1: usize = Self::xy_to_pixel(pos0.y().clamp(pos1.y(), 1.0), self.height);
+        let mut y_1: usize = Self::xy_to_pixel(pos0.y().clamp(pos1.y(), 1.0), self.height);
+        if y_1 >= self.height {
+            y_1 = self.height - 1;
+        }
         for y in y_0..=y_1 {
             let x = (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * Self::pixel_to_xy(y, self.height) +
              (pos0.x() - (pos1.x() - pos0.x()) / (pos1.y() - pos0.y()) * pos0.y());
-            if x >= 0.0f32 && x <=1.0f32 {
+            if x >= 0.0f32 && x < 1.0f32 {
                 self.set_pixel(Self::xy_to_pixel(x, self.width), y, color, blend_mode);
             }
         }
