@@ -1,5 +1,7 @@
-use super::*;
+use crate::types::colortype::{InternalColorType, ColorType};
+use crate::linalg::Vec4;
 
+// Since blending can be determined through run time, use enum.
 #[derive(Copy, Clone)]
 pub enum BlendMode {
     Override,

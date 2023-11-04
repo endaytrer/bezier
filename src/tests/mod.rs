@@ -1,26 +1,23 @@
 use num::One;
 
-use crate::BezierCanvasFactory;
+use crate::canvas::BezierCanvas;
 use crate::convert::PNGCompatible;
-use crate::linalg::{Vec2, Matrix2, Det};
-use crate::types::{RGB, RGBA, blend::BlendMode};
+use crate::linalg::{Vec2, Matrix2, Det, Vec4};
+use crate::texture::{LinearFilter, WrapClampToEdge};
+use crate::types::colortype::{RGB, RGBA};
+use crate::types::blend::BlendMode;
 
 mod shader;
 #[test]
 fn init_canvas() {
-    let canvas = BezierCanvasFactory::new()
-        .set_size(1200, 800)
-        .create_canvas::<u32, RGB>();
-
-    assert_eq!(canvas.get_pixel(0, 0), RGB {r: 0, g: 0, b: 0});
-    assert_eq!(canvas.get_pixel(1199, 799), RGB {r: 0, g: 0, b: 0});
+    let canvas = BezierCanvas::<u32, RGB>::new(1200, 800);
     canvas.export_png("target/debug/examples/hello.png");
+    assert_eq!(canvas.sample::<LinearFilter, WrapClampToEdge, WrapClampToEdge>(&Vec2::new(0.0, 0.0)), Vec4::new(0.0, 0.0, 0.0, 1.0));
+    assert_eq!(canvas.sample::<LinearFilter, WrapClampToEdge, WrapClampToEdge>(&Vec2::new(1.0, 1.0)), Vec4::new(0.0, 0.0, 0.0, 1.0));
 }
 #[test]
 fn rectangle_and_lines() {
-    let mut canvas = BezierCanvasFactory::new()
-        .set_size(1200, 800)
-        .create_canvas::<u32, RGB>();
+    let mut canvas = BezierCanvas::<u32, RGB>::new(1200, 800);
 
     canvas.fill_rect(&Vec2 {v: [0.1667f32, 0.125f32]}, &Vec2{v: [0.25f32, 0.25f32]}, &RGB { r: 255, g: 0, b: 0 }, BlendMode::Override);
     canvas.export_png("target/debug/examples/rect.png");
@@ -41,9 +38,7 @@ fn linear_algebra() {
 
 #[test]
 fn bezier_curve() {
-    let mut canvas = BezierCanvasFactory::new()
-        .set_size(400, 400)
-        .create_canvas::<u32, RGBA>();
+    let mut canvas = BezierCanvas::<u32, RGBA>::new(400, 400);
 
     canvas.fill_oval(&Vec2{v: [0.5, 0.5]}, &Vec2{v: [0.25, 0.375]}, &RGBA { r: 255, g: 0, b: 0, a: 200 }, BlendMode::Alpha);
     let poses = [
@@ -71,9 +66,7 @@ fn bezier_curve() {
 
 #[test]
 fn blend_modes() {
-    let mut canvas = BezierCanvasFactory::new()
-        .set_size(400, 400)
-        .create_canvas::<u32, RGB>();
+    let mut canvas = BezierCanvas::<u32, RGB>::new(400, 400);
 
     canvas.fill_rect(&Vec2 { v: [0.0, 0.0]}, &Vec2 { v: [1.0, 1.0]}, &RGB { r: 0, g: 255, b: 0 }, BlendMode::Override);
     canvas.fill_rect(&Vec2 { v: [0.25, 0.25]}, &Vec2 { v: [0.375, 0.375]}, &RGB { r: 255, g: 255, b: 0 }, BlendMode::Screen);

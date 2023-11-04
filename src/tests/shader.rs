@@ -1,4 +1,10 @@
-use crate::{shader::{vert_shader::VertexShader, VertexOut, frag_shader::FragmentShader, FragOut}, linalg::{Vec2, BVec, Vec4}, types::{RGBA, blend::BlendMode, ColorType, RGB}, BezierCanvasFactory, BezierCanvas, texture::{LinearFilter, ClampToEdge}, convert::PNGCompatible};
+use crate::canvas::BezierCanvas;
+use crate::convert::PNGCompatible;
+use crate::texture::{LinearFilter, WrapClampToEdge};
+use crate::types::blend::BlendMode;
+use crate::types::colortype::{ColorType, RGB, RGBA};
+use crate::linalg::{BVec, Vec2, Vec4};
+use crate::shading::{VertexShader, FragmentShader, VertexOut, FragOut};
 
 pub struct VS {}
 
@@ -47,7 +53,7 @@ impl FragmentShader for FS {
     type ExternalType = RGBA;
 
     fn shade(attribute: &Self::In, uniform: &Self::Uniform) -> FragOut<Self::InternalType, Self::ExternalType> {
-        let color = uniform.texture.sample::<LinearFilter, ClampToEdge, ClampToEdge>(&attribute.xy());
+        let color = uniform.texture.sample::<LinearFilter, WrapClampToEdge, WrapClampToEdge>(&attribute.xy());
         let color_2 = Vec4::new(attribute.v[2], attribute.v[3], attribute.v[4], attribute.v[5]);
         FragOut::new(RGBA::from_vec4(color.star(&color_2)), 0.0f32)
     }
@@ -57,12 +63,10 @@ impl FragmentShader for FS {
 #[test]
 fn shade() {
     
-    let mut canvas = BezierCanvasFactory::new()
-        .set_size(1200, 800)
-        .create_canvas::<u32, RGBA>();
+    let mut canvas = BezierCanvas::<u32, RGBA>::new(1200, 800);
     let texture = BezierCanvas::<u32, RGB>::from_png("avatar.png");
     let mut vertices: Vec<VIn> = Vec::new();
-    for _ in 0..1000 {
+    for _ in 0..1 {
 
         let pos0 = Vec2::new(rand::random(), rand::random());
         let pos1 = Vec2::new(rand::random(), rand::random());

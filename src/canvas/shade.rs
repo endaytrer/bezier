@@ -1,35 +1,11 @@
-use std::marker::PhantomData;
 
-use crate::{linalg::{Linear, Vec2, Matrix2, Det}, types::{InternalColorType, ColorType, blend::BlendMode}, BezierCanvas};
-
-use self::{vert_shader::VertexShader, frag_shader::FragmentShader};
-
-pub mod vert_shader;
-pub mod frag_shader;
-
-pub struct VertexOut<T: Linear<f32>> {
-    pub coord: Vec2,
-    pub varying: T
-}
-impl <T: Linear<f32>> VertexOut<T> {
-    pub fn new(coord: Vec2, varying: T) -> Self {
-        VertexOut {
-            coord,
-            varying
-        }
-    }
-}
-pub struct FragOut<InternalType: InternalColorType, ExternalType: ColorType<InternalType>> {
-    pub color: ExternalType,
-    pub depth: f32,
-    phantom_data: PhantomData<InternalType>
-}
-
-impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> FragOut<InternalType, ExternalType> {
-    pub fn new(color: ExternalType, depth: f32) -> Self {
-        FragOut { color: color, depth: depth, phantom_data: PhantomData }
-    }
-}
+use crate::linalg::{Linear, Vec2, Matrix2, Det};
+use crate::types::{
+    colortype::{InternalColorType, ColorType},
+    blend::BlendMode
+};
+use crate::canvas::BezierCanvas;
+use crate::shading::{VertexShader, FragmentShader, VertexOut};
 
 use rayon::prelude::*;
 impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> BezierCanvas<InternalType, ExternalType> {
@@ -52,22 +28,18 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
             let attr0 = out[i + 0].varying;
             let attr1 = out[i + 1].varying;
             let attr2 = out[i + 2].varying;
-            let min_x = (v0.x()
+            let min_x = Self::xy_to_pixel(v0.x()
                 .clamp(0f32, v1.x())
-                .clamp(0f32, v2.x()) * ((self.width - 1) as f32))
-                .round() as usize;
-            let max_x = (v0.x()
+                .clamp(0f32, v2.x()), self.width);
+            let max_x = Self::xy_to_pixel(v0.x()
                 .clamp(v1.x(), 1f32)
-                .clamp(v2.x(), 1f32) * ((self.width - 1) as f32))
-                .round() as usize;
-            let min_y = (v0.y()
+                .clamp(v2.x(), 1f32), self.width);
+            let min_y = Self::xy_to_pixel(v0.y()
                 .clamp(0f32, v1.y())
-                .clamp(0f32, v2.y()) * ((self.height - 1) as f32))
-                .round() as usize;
-            let max_y = (v0.y()
+                .clamp(0f32, v2.y()), self.height);
+            let max_y = Self::xy_to_pixel(v0.y()
                 .clamp(v1.y(), 1f32)
-                .clamp(v2.y(), 1f32) * ((self.height - 1) as f32))
-                .round() as usize;
+                .clamp(v2.y(), 1f32), self.height);
 
             let mat = Matrix2 {v: [(v1 - v0).v, (v2 - v0).v]}.transpose();
             let det_mat = mat.det();
@@ -96,7 +68,7 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
                     .enumerate()
                     .for_each(|(j, (depth, pixel))| {
                         let x = j + min_x;
-                        let coord = Vec2 {v: [(x as f32) / ((self.width - 1) as f32), (y as f32) / ((self.height - 1) as f32)]};
+                        let coord = Vec2::new(Self::pixel_to_xy(x, self.width), Self::pixel_to_xy(y, self.height));
                         let ans = coord - v0;
                         let det_t = Matrix2 {
                             v: [[ans.x(), mat.v[0][1]],
@@ -119,7 +91,7 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
                         let shaded = FragShader::shade(&attrib, uniform);
                         if shaded.depth > *depth {
                             *depth = shaded.depth;
-                            *pixel = blend_mode.blend(*pixel, &shaded.color);
+                            BezierCanvas::par_set_pixel(pixel, &shaded.color, blend_mode);
                         }
                     })
             });

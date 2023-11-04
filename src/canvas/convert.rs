@@ -1,6 +1,7 @@
 use std::{path::Path, fs::File, io::BufWriter};
-use crate::{BezierCanvas, types::{RGBA, RGB, ColorType, RA, R, A}, BezierCanvasFactory};
-
+use crate::canvas::BezierCanvas;
+use crate::convert::PNGCompatible;
+use crate::types::colortype::{ColorType, RGBA, RGB, RA, R, A};
 fn init_writer(img_path: &str, width: u32, height: u32, color_type: png::ColorType) -> png::Writer<BufWriter<File>> {
     let path = Path::new(img_path);
     let file = File::create(path).unwrap();
@@ -20,10 +21,6 @@ fn init_writer(img_path: &str, width: u32, height: u32, color_type: png::ColorTy
     );
     encoder.set_source_chromaticities(source_chromaticities);
     encoder.write_header().unwrap()
-}
-pub trait PNGCompatible {
-    fn export_png(&self, img_path: &str);
-    fn from_png(img_path: &str) -> Self;
 }
 
 impl PNGCompatible for BezierCanvas<u32, RGBA> {
@@ -47,7 +44,7 @@ impl PNGCompatible for BezierCanvas<u32, RGBA> {
         let mut buf = vec![0; reader.output_buffer_size()];
         let info = reader.next_frame(&mut buf).unwrap();
         let bytes = &buf[..info.buffer_size()];
-        let mut canvas = BezierCanvasFactory::new().set_size(info.width as usize, info.height as usize).create_canvas();
+        let mut canvas = BezierCanvas::new(info.width as usize, info.height as usize);
 
         match info.color_type {
             png::ColorType::Rgba => {
@@ -135,7 +132,7 @@ impl PNGCompatible for BezierCanvas<u32, RGB> {
         let mut buf = vec![0; reader.output_buffer_size()];
         let info = reader.next_frame(&mut buf).unwrap();
         let bytes = &buf[..info.buffer_size()];
-        let mut canvas = BezierCanvasFactory::new().set_size(info.width as usize, info.height as usize).create_canvas();
+        let mut canvas = BezierCanvas::new(info.width as usize, info.height as usize);
         
         match info.color_type {
             png::ColorType::Rgb => {
@@ -185,7 +182,7 @@ impl PNGCompatible for BezierCanvas<u16, RA> {
         let mut buf = vec![0; reader.output_buffer_size()];
         let info = reader.next_frame(&mut buf).unwrap();
         let bytes = &buf[..info.buffer_size()];
-        let mut canvas = BezierCanvasFactory::new().set_size(info.width as usize, info.height as usize).create_canvas();
+        let mut canvas = BezierCanvas::new(info.width as usize, info.height as usize);
         
         match info.color_type {
             png::ColorType::GrayscaleAlpha => {
@@ -242,7 +239,7 @@ impl PNGCompatible for BezierCanvas<u8, R> {
         let mut buf = vec![0; reader.output_buffer_size()];
         let info = reader.next_frame(&mut buf).unwrap();
         let bytes = &buf[..info.buffer_size()];
-        let mut canvas = BezierCanvasFactory::new().set_size(info.width as usize, info.height as usize).create_canvas();
+        let mut canvas = BezierCanvas::new(info.width as usize, info.height as usize);
         
         match info.color_type {
             png::ColorType::Grayscale => {
@@ -278,7 +275,7 @@ impl PNGCompatible for BezierCanvas<u8, A> {
         let mut buf = vec![0; reader.output_buffer_size()];
         let info = reader.next_frame(&mut buf).unwrap();
         let bytes = &buf[..info.buffer_size()];
-        let mut canvas = BezierCanvasFactory::new().set_size(info.width as usize, info.height as usize).create_canvas();
+        let mut canvas = BezierCanvas::new(info.width as usize, info.height as usize);
         
         match info.color_type {
             png::ColorType::Indexed => {
