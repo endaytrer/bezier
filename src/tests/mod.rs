@@ -80,3 +80,13 @@ fn blend_modes() {
     canvas.export_png("target/debug/examples/blend.png");
 
 }
+
+#[test]
+fn fill_shape() {
+    let mut canvas = BezierCanvas::<u32, RGB>::new(400, 400);
+    let contour1 = vec![Vec2::new(0.375, 0.125), Vec2::new(0.875, 0.125), Vec2::new(0.125, 0.5), Vec2::new(0.875, 0.625), Vec2::new(0.375, 0.875), Vec2::new(0.125, 0.5)];
+    let contour2 = vec![Vec2::new(0.5, 0.375), Vec2::new(0.375, 0.625), Vec2::new(0.625, 0.625)];
+    canvas.fill_shape(&vec![contour1, contour2], &RGB{r: 255, g: 255, b: 255}, BlendMode::Override);
+
+    canvas.export_png("target/debug/examples/shape.png");
+}

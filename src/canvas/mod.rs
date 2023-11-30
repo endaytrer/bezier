@@ -191,5 +191,89 @@ impl <InternalType: InternalColorType, ExternalType: ColorType<InternalType>> Be
             prev_ans = Some(ans);
         }
     }
+    /**
+        Fill the shape, defined by contours.
+
+        A contour is a list of `Vec2`, defining the points on the contour, interpolated linearly.
+        The shape is defined by **xor**ing all the shapes defined in contours, so orientation does not matter. The 0th point in contour is considered the closing point on the last edge, so it is not needed to include the point twice.
+        
+        However, for compatibility, clockwise outer contour and counterclockwise inner contour is still recommended.
+     */
+    pub fn fill_shape(&mut self, contours: &Vec<Vec<Vec2>>, color: &ExternalType, blend_mode: BlendMode) {
+        let mut min_x = 1f32;
+        let mut min_y = 1f32;
+        let mut max_x = 0f32;
+        let mut max_y = 0f32;
+        for contour in contours {
+            for pnt in contour {
+                if pnt.x() < min_x {
+                    min_x = pnt.x();
+                } else if pnt.x() > max_x {
+                    max_x = pnt.x();
+                }
+                if pnt.y() < min_y {
+                    min_y = pnt.y();
+                } else if pnt.y() > max_y {
+                    max_y = pnt.y();
+                }
+            }
+        }
+        let x_0 = Self::xy_to_pixel(min_x, self.width);
+        let x_1 = Self::xy_to_pixel(max_x, self.width);
+        let y_0 = Self::xy_to_pixel(min_y, self.height);
+        let y_1 = Self::xy_to_pixel(max_y, self.height);
+        let mut pass_time = vec![0i8; (x_1 - x_0 + 1) * (y_1 - y_0 + 1)]; // i8 should be enough, only take the lowest bit
+        for contour in contours {
+            let contour_len = contour.len();
+            pass_time.par_chunks_mut(x_1 + 1 - x_0)
+            .enumerate()
+            .for_each(|(i, times)| {
+                let y = i + y_0;
+                let yf = Self::pixel_to_xy(y, self.height);
+                let mut intersections: Vec<f32> = Vec::new();
+                for k in 0..contour_len {
+                    let p0 = contour[k];
+                    let p1 = contour[(k + 1) % contour_len];
+                    let delta = p1 - p0;
+                    // x(t) = p0 + t * delta;
+                    if delta.y().abs() < f32::EPSILON {
+                        if p0.y() == yf {
+                            // we do not consider the end point as in contour, so the intersection is at first.
+                            intersections.push(p0.x());
+                        }
+                        continue;
+                    }
+                    let t = (yf - p0.y()) / delta.y();
+                    if t < 0f32 || t >= 1f32 {
+                        continue;
+                    }
+                    let x = p0.x() + t * delta.x();
+                    intersections.push(x);
+                }
+                intersections.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+                let intersect_len = intersections.len();
+                // there should be even number of intersections;
+                assert!((intersect_len & 1) == 0);
+                for k in (0..intersect_len).step_by(2) {
+                    let x_start = Self::xy_to_pixel(intersections[k], self.width);
+                    let x_end= Self::xy_to_pixel(intersections[k + 1], self.width);
+                    for x in x_start..=x_end {
+                        let j = x - x_0;
+                        times[j] ^= 1;
+                    }
+                }
+            });
+        }
+        for y in y_0..=y_1 {
+            let i = y - y_0;
+            for x in x_0..=x_1 {
+                let j = x - x_0;
+                if pass_time[i * (x_1 + 1 - x_0) + j] == 1 {
+                    self.set_pixel(x, y, color, blend_mode);
+                }
+            }
+        }
+    }
 }
 
